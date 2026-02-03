@@ -70,3 +70,23 @@ else:
     st.sidebar.error("Dataset not found. Please ensure 'adaptive_task_scheduling_dataset.csv' is in the project folder.")
     st.stop()
 
+# --- Team Management ---
+st.header("👥 Team Configuration")
+if 'team' not in st.session_state:
+    st.session_state.team = [
+        {"Name": "Alice", "Skills": ["Python", "Machine Learning"], "Workload": 0.0},
+        {"Name": "Bob", "Skills": ["UI/UX", "JavaScript"], "Workload": 0.0},
+        {"Name": "Charlie", "Skills": ["Cloud", "DevOps"], "Workload": 0.0}
+    ]
+
+with st.expander("Edit Team Members"):
+    new_team = []
+    for i, member in enumerate(st.session_state.team):
+        col1, col2 = st.columns(2)
+        name = col1.text_input(f"Member {i+1} Name", value=member["Name"], key=f"name_{i}")
+        skills = col2.multiselect(f"Member {i+1} Skills", options=all_skills, default=[s for s in member["Skills"] if s in all_skills], key=f"skills_{i}")
+        new_team.append({"Name": name, "Skills": skills, "Workload": member["Workload"]})
+    
+    if st.button("Update Team"):
+        st.session_state.team = new_team
+        st.success("Team updated!")
