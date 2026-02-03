@@ -5,6 +5,8 @@ import os
 import streamlit as st
 import gymnasium as gym
 from stable_baselines3 import PPO
+from stable_baselines3.common.vec_env import DummyVecEnv
+from sklearn.preprocessing import LabelEncoder
 
 class TaskSchedulingEnv(gym.Env):
     def __init__(self, tasks, team, skill_encoder):
@@ -54,3 +56,17 @@ st.markdown("""
 This application uses **Reinforcement Learning (PPO)** to optimally assign tasks to team members based on 
 skills, deadlines, priorities, and current workloads.
 """)
+
+# --- Sidebar: Configuration & Data ---
+st.sidebar.header("Data & Model")
+dataset_path = "adaptive_task_scheduling_dataset.csv"
+
+if os.path.exists(dataset_path):
+    df = pd.read_csv(dataset_path)
+    all_skills = sorted(df['Skill Requirement'].unique())
+    skill_encoder = LabelEncoder().fit(all_skills)
+    st.sidebar.success("Dataset loaded successfully!")
+else:
+    st.sidebar.error("Dataset not found. Please ensure 'adaptive_task_scheduling_dataset.csv' is in the project folder.")
+    st.stop()
+
