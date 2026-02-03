@@ -90,3 +90,31 @@ with st.expander("Edit Team Members"):
     if st.button("Update Team"):
         st.session_state.team = new_team
         st.success("Team updated!")
+
+# --- Training Section ---
+st.header("⚙️ Model Training")
+col1, col2 = st.columns(2)
+timesteps = col1.slider("Training Timesteps", 1000, 50000, 10000)
+
+if col2.button("Train Model"):
+    with st.spinner("Training RL Agent..."):
+        # Preprocess some tasks for training
+        def preprocess(task):
+            days = (pd.to_datetime(task["Task Deadline"]) - pd.Timestamp.now().normalize()).days
+            p_map = {"Low": 0, "Medium": 1, "High": 2}
+            return {
+                "Skill": skill_encoder.transform([task["Skill Requirement"]])[0],
+                "Deadline": days,
+                "Priority": p_map.get(task["Task Priority"], 0),
+                "Duration": task["Estimated Completion Time"] / 8
+            }
+        
+        train_data = df.sample(min(200, len(df)))
+        rl_tasks = [preprocess(row) for _, row in train_data.iterrows()]
+        
+        env = DummyVecEnv([lambda: TaskSchedulingEnv(rl_tasks, st.session_state.team, skill_encoder)])
+        model = PPO("MlpPolicy", env, verbose=0)
+        model.learn(total_timesteps=timesteps)
+        
+        st.session_state.model = model
+        st.success("Model trained and ready!")
