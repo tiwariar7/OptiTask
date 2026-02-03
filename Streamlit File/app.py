@@ -1,6 +1,10 @@
 import pandas as pd
 import numpy as np
-import os 
+import os
+
+import streamlit as st
+import gymnasium as gym
+from stable_baselines3 import PPO
 
 class TaskSchedulingEnv(gym.Env):
     def __init__(self, tasks, team, skill_encoder):
@@ -42,3 +46,11 @@ class TaskSchedulingEnv(gym.Env):
         for m in self.team: m['Workload'] = 0
         return self._get_state(), {}
 
+# --- Streamlit UI ---
+st.set_page_config(page_title="Adaptive Task Scheduler", layout="wide")
+
+st.title(" Adaptive Task Scheduling using RL")
+st.markdown("""
+This application uses **Reinforcement Learning (PPO)** to optimally assign tasks to team members based on 
+skills, deadlines, priorities, and current workloads.
+""")
