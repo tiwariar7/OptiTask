@@ -35,3 +35,10 @@ class TaskSchedulingEnv(gym.Env):
         self.current_task_idx += 1
         done = self.current_task_idx >= len(self.tasks)
         return self._get_state(), float(reward), done, False, {}
+
+    def reset(self, seed=None, options=None):
+        super().reset(seed=seed)
+        self.current_task_idx = 0
+        for m in self.team: m['Workload'] = 0
+        return self._get_state(), {}
+
