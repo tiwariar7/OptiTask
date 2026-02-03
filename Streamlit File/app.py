@@ -12,3 +12,10 @@ class TaskSchedulingEnv(gym.Env):
         self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(4 + len(team),), dtype=np.float32)
         self.current_task_idx = 0
         self.state = self._get_state()
+
+    def _get_state(self):
+        if self.current_task_idx >= len(self.tasks): return np.zeros(self.observation_space.shape, dtype=np.float32)
+        task = self.tasks[self.current_task_idx]
+        task_vector = np.array([task["Skill"], task["Deadline"], task["Priority"], task["Duration"]], dtype=np.float32)
+        team_vector = np.array([member['Workload'] / 20 for member in self.team], dtype=np.float32)
+        return np.concatenate([task_vector, team_vector])
