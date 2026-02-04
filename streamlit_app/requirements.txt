@@ -10,3 +10,4 @@ shimmy>=2.0
 matplotlib
 torch
 seaborn
+altair==4.2.2
