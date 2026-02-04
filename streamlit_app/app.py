@@ -66,18 +66,16 @@ st.sidebar.header("Data & Model")
 BASE_DIR = Path(__file__).parent
 DATA_PATH = BASE_DIR / "adaptive_task_scheduling_dataset.csv"
 
-dataset_path = pd.read_csv(DATA_PATH)
+BASE_DIR = Path(__file__).parent
+DATA_PATH = BASE_DIR / "adaptive_task_scheduling_dataset.csv"
 
-
-if os.path.exists(dataset_path):
-    df = pd.read_csv(dataset_path)
+if DATA_PATH.exists():
+    df = pd.read_csv(DATA_PATH)
     all_skills = sorted(df['Skill Requirement'].unique())
     skill_encoder = LabelEncoder().fit(all_skills)
-    st.sidebar.success("Dataset loaded successfully!")
 else:
-    st.sidebar.error("Dataset not found. Please ensure 'adaptive_task_scheduling_dataset.csv' is in the project folder.")
+    st.error("Dataset not found. Please ensure 'adaptive_task_scheduling_dataset.csv' is in the project folder.")
     st.stop()
-
 # --- Team Management ---
 st.header("Team Configuration")
 if 'team' not in st.session_state:
