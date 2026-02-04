@@ -8,6 +8,7 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv
 from sklearn.preprocessing import LabelEncoder
 
+from pathlib import Path
 import pickle
 
 class TaskSchedulingEnv(gym.Env):
@@ -61,7 +62,12 @@ skills, deadlines, priorities, and current workloads.
 
 # --- Sidebar: Configuration & Data ---
 st.sidebar.header("Data & Model")
-dataset_path = "adaptive_task_scheduling_dataset.csv"
+
+BASE_DIR = Path(__file__).parent
+DATA_PATH = BASE_DIR / "adaptive_task_scheduling_dataset.csv"
+
+dataset_path = pd.read_csv(DATA_PATH)
+
 
 if os.path.exists(dataset_path):
     df = pd.read_csv(dataset_path)
@@ -73,7 +79,7 @@ else:
     st.stop()
 
 # --- Team Management ---
-st.header("👥 Team Configuration")
+st.header("Team Configuration")
 if 'team' not in st.session_state:
     st.session_state.team = [
         {"Name": "Alice", "Skills": ["Python", "Machine Learning"], "Workload": 0.0},
@@ -94,7 +100,7 @@ with st.expander("Edit Team Members"):
         st.success("Team updated!")
 
 # --- Training Section ---
-st.header("⚙️ Model Training")
+st.header("Model Training")
 col1, col2 = st.columns(2)
 timesteps = col1.slider("Training Timesteps", 1000, 50000, 10000)
 
@@ -122,7 +128,7 @@ if col2.button("Train Model"):
         st.success("Model trained and ready!")
 
 # --- Task Assignment ---
-st.header("📋 Assign New Task")
+st.header("Assign New Task")
 if 'model' in st.session_state:
     c1, c2, c3, c4 = st.columns(4)
     task_skill = c1.selectbox("Required Skill", options=all_skills)
