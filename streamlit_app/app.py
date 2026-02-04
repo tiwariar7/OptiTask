@@ -23,23 +23,41 @@ class TaskSchedulingEnv(gym.Env):
         self.state = self._get_state()
 
     def _get_state(self):
-        if self.current_task_idx >= len(self.tasks): return np.zeros(self.observation_space.shape, dtype=np.float32)
+        if self.current_task_idx >= len(self.tasks): 
+            return np.zeros(self.observation_space.shape, dtype=np.float32)
         task = self.tasks[self.current_task_idx]
         task_vector = np.array([task["Skill"], task["Deadline"], task["Priority"], task["Duration"]], dtype=np.float32)
         team_vector = np.array([member['Workload'] / 20 for member in self.team], dtype=np.float32)
         return np.concatenate([task_vector, team_vector])
 
     def step(self, action):
-        if isinstance(action, (np.ndarray, list)): action = int(action[0])
+        if isinstance(action, (np.ndarray, list)): 
+            action = int(action[0])
         member = self.team[action]
         task = self.tasks[self.current_task_idx]
         reward = 0
-        member_skill_indices = [self.skill_encoder.transform([s.strip()])[0] for s in member['Skills'] if s.strip() in self.skill_encoder.classes_]
+        
+        # Convert member skills to encoded indices
+        member_skill_indices = []
+        for skill in member['Skills']:
+            skill_str = str(skill).strip()
+            if skill_str in self.skill_encoder.classes_:
+                try:
+                    encoded_skill = self.skill_encoder.transform([skill_str])[0]
+                    member_skill_indices.append(encoded_skill)
+                except:
+                    pass
+        
         reward += 20 if task['Skill'] in member_skill_indices else -10
         reward += 10 if member['Workload'] < 10 else -15
-        if task['Deadline'] > 0: reward += 10
-        elif task['Deadline'] == 0: reward += 5
-        else: reward -= 20
+        
+        if task['Deadline'] > 0: 
+            reward += 10
+        elif task['Deadline'] == 0: 
+            reward += 5
+        else: 
+            reward -= 20
+            
         member['Workload'] += task['Duration']
         self.current_task_idx += 1
         done = self.current_task_idx >= len(self.tasks)
@@ -48,7 +66,8 @@ class TaskSchedulingEnv(gym.Env):
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
         self.current_task_idx = 0
-        for m in self.team: m['Workload'] = 0
+        for m in self.team: 
+            m['Workload'] = 0
         return self._get_state(), {}
 
 # --- Streamlit UI ---
@@ -66,14 +85,20 @@ st.sidebar.header("Data & Model")
 BASE_DIR = Path(__file__).parent
 DATA_PATH = BASE_DIR / "adaptive_task_scheduling_dataset.csv"
 
-
+# Check if file exists first
 if DATA_PATH.exists():
-    df = pd.read_csv(DATA_PATH)
-    all_skills = sorted(df['Skill Requirement'].unique())
-    skill_encoder = LabelEncoder().fit(all_skills)
+    try:
+        df = pd.read_csv(DATA_PATH)
+        all_skills = sorted(df['Skill Requirement'].unique())
+        skill_encoder = LabelEncoder().fit(all_skills)
+        st.sidebar.success("Dataset loaded successfully!")
+    except Exception as e:
+        st.sidebar.error(f"Error loading dataset: {str(e)}")
+        st.stop()
 else:
-    st.error("Dataset not found. Please ensure 'adaptive_task_scheduling_dataset.csv' is in the project folder.")
+    st.sidebar.error("Dataset not found. Please ensure 'adaptive_task_scheduling_dataset.csv' is in the project folder.")
     st.stop()
+
 # --- Team Management ---
 st.header("Team Configuration")
 if 'team' not in st.session_state:
@@ -88,7 +113,12 @@ with st.expander("Edit Team Members"):
     for i, member in enumerate(st.session_state.team):
         col1, col2 = st.columns(2)
         name = col1.text_input(f"Member {i+1} Name", value=member["Name"], key=f"name_{i}")
-        skills = col2.multiselect(f"Member {i+1} Skills", options=all_skills, default=[s for s in member["Skills"] if s in all_skills], key=f"skills_{i}")
+        skills = col2.multiselect(
+            f"Member {i+1} Skills", 
+            options=all_skills, 
+            default=[s for s in member["Skills"] if s in all_skills], 
+            key=f"skills_{i}"
+        )
         new_team.append({"Name": name, "Skills": skills, "Workload": member["Workload"]})
     
     if st.button("Update Team"):
@@ -104,24 +134,58 @@ if col2.button("Train Model"):
     with st.spinner("Training RL Agent..."):
         # Preprocess some tasks for training
         def preprocess(task):
-            days = (pd.to_datetime(task["Task Deadline"]) - pd.Timestamp.now().normalize()).days
-            p_map = {"Low": 0, "Medium": 1, "High": 2}
-            return {
-                "Skill": skill_encoder.transform([task["Skill Requirement"]])[0],
-                "Deadline": days,
-                "Priority": p_map.get(task["Task Priority"], 0),
-                "Duration": task["Estimated Completion Time"] / 8
-            }
+            try:
+                # Handle deadline conversion
+                if isinstance(task["Task Deadline"], str):
+                    deadline_days = (pd.to_datetime(task["Task Deadline"]) - pd.Timestamp.now().normalize()).days
+                else:
+                    deadline_days = int(task["Task Deadline"])
+                
+                # Map priority
+                p_map = {"Low": 0, "Medium": 1, "High": 2}
+                priority_val = p_map.get(task["Task Priority"], 1)
+                
+                # Convert skill to encoded value
+                skill_val = skill_encoder.transform([str(task["Skill Requirement"]).strip()])[0]
+                
+                # Normalize duration (assume 8-hour workday)
+                duration_hours = float(task["Estimated Completion Time"])
+                duration_norm = duration_hours / 8.0
+                
+                return {
+                    "Skill": skill_val,
+                    "Deadline": deadline_days,
+                    "Priority": priority_val,
+                    "Duration": duration_norm
+                }
+            except Exception as e:
+                # Return default values if preprocessing fails
+                return {
+                    "Skill": 0,
+                    "Deadline": 7,
+                    "Priority": 1,
+                    "Duration": 0.5
+                }
         
-        train_data = df.sample(min(200, len(df)))
+        # Use a subset of data for training
+        train_size = min(200, len(df))
+        train_data = df.sample(train_size, random_state=42)
         rl_tasks = [preprocess(row) for _, row in train_data.iterrows()]
         
+        # Filter out None values
+        rl_tasks = [task for task in rl_tasks if task is not None]
+        
+        if len(rl_tasks) == 0:
+            st.error("Failed to preprocess tasks. Please check your dataset.")
+            st.stop()
+        
+        # Create and train the environment
         env = DummyVecEnv([lambda: TaskSchedulingEnv(rl_tasks, st.session_state.team, skill_encoder)])
-        model = PPO("MlpPolicy", env, verbose=0)
+        model = PPO("MlpPolicy", env, verbose=0, learning_rate=0.0003, n_steps=2048)
         model.learn(total_timesteps=timesteps)
         
         st.session_state.model = model
-        st.success("Model trained and ready!")
+        st.success(f"Model trained successfully on {len(rl_tasks)} tasks!")
 
 # --- Task Assignment ---
 st.header("Assign New Task")
@@ -130,31 +194,43 @@ if 'model' in st.session_state:
     task_skill = c1.selectbox("Required Skill", options=all_skills)
     task_deadline = c2.number_input("Days to Deadline", min_value=0, value=7)
     task_priority = c3.selectbox("Priority", options=["Low", "Medium", "High"])
-    task_duration = c4.number_input("Duration (Hours)", min_value=1.0, value=4.0)
+    task_duration = c4.number_input("Duration (Hours)", min_value=1.0, value=4.0, step=0.5)
 
     if st.button("Assign Task"):
-        # Prepare state
-        s_idx = skill_encoder.transform([task_skill])[0]
-        p_idx = {"Low": 0, "Medium": 1, "High": 2}.get(task_priority, 1)
-        dur_norm = task_duration / 8
-        
-        state = np.concatenate([
-            np.array([s_idx, task_deadline, p_idx, dur_norm]),
-            [m['Workload'] / 20 for m in st.session_state.team]
-        ])
-        
-        action, _ = st.session_state.model.predict(state.reshape(1, -1), deterministic=True)
-        assigned_idx = int(action[0])
-        assigned_member = st.session_state.team[assigned_idx]
-        
-        # Update workload in session state
-        st.session_state.team[assigned_idx]['Workload'] += dur_norm
-        
-        st.balloons()
-        st.success(f"### Task assigned to: **{assigned_member['Name']}**")
-        
-        # Display summary
-        st.info(f"**Reasoning:** {assigned_member['Name']} has skills: {', '.join(assigned_member['Skills'])}. Current Workload: {st.session_state.team[assigned_idx]['Workload']*8:.1f} hours.")
+        try:
+            # Prepare task data
+            s_idx = skill_encoder.transform([task_skill])[0]
+            p_map = {"Low": 0, "Medium": 1, "High": 2}
+            p_idx = p_map.get(task_priority, 1)
+            dur_norm = task_duration / 8.0
+            
+            # Create state vector
+            state = np.concatenate([
+                np.array([s_idx, task_deadline, p_idx, dur_norm], dtype=np.float32),
+                np.array([m['Workload'] / 20 for m in st.session_state.team], dtype=np.float32)
+            ])
+            
+            # Predict action
+            action, _ = st.session_state.model.predict(state.reshape(1, -1), deterministic=True)
+            assigned_idx = int(action[0])
+            assigned_member = st.session_state.team[assigned_idx]
+            
+            # Update workload in session state
+            st.session_state.team[assigned_idx]['Workload'] += dur_norm
+            
+            st.balloons()
+            st.success(f"### Task assigned to: **{assigned_member['Name']}**")
+            
+            # Display summary
+            st.info(f"""
+            **Reasoning:**
+            - {assigned_member['Name']} has skills: {', '.join(assigned_member['Skills'])}
+            - Current Workload: {st.session_state.team[assigned_idx]['Workload']*8:.1f} hours
+            - Required skill '{task_skill}' matches: {'✓' if task_skill in assigned_member['Skills'] else '✗'}
+            """)
+            
+        except Exception as e:
+            st.error(f"Error assigning task: {str(e)}")
 else:
     st.warning("Please train the model first to enable task assignment.")
 
@@ -165,20 +241,27 @@ st.header("Team Dashboard")
 workload_data = pd.DataFrame([
     {
         "Name": str(m.get("Name", "")), 
-        "Workload (Hours)": float(m.get("Workload", 0.0)) * 8
+        "Workload (Hours)": float(m.get("Workload", 0.0)) * 8,
+        "Skills": ", ".join(m.get("Skills", []))
     }
     for m in st.session_state.team
 ])
 
-# Explicitly enforce safe dtypes
-workload_data["Name"] = workload_data["Name"].astype("string")
-workload_data["Workload (Hours)"] = workload_data["Workload (Hours)"].astype("float")
+# Display workload chart
+st.subheader("Current Workload Distribution")
+st.bar_chart(workload_data.set_index("Name")["Workload (Hours)"])
 
-# Plot
-st.bar_chart(workload_data.set_index("Name"))
+# Display team details table
+st.subheader("Team Details")
+st.dataframe(workload_data, use_container_width=True)
 
 # Reset button
-if st.button("Reset Workloads"):
+if st.button("Reset All Workloads"):
     for m in st.session_state.team:
         m["Workload"] = 0.0
+    st.success("All workloads have been reset to zero!")
     st.rerun()
+
+# --- Footer ---
+st.markdown("---")
+st.caption("Adaptive Task Scheduler v1.0 | Powered by Stable-Baselines3 PPO")
