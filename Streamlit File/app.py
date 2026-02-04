@@ -118,3 +118,38 @@ if col2.button("Train Model"):
         
         st.session_state.model = model
         st.success("Model trained and ready!")
+
+# --- Task Assignment ---
+st.header("📋 Assign New Task")
+if 'model' in st.session_state:
+    c1, c2, c3, c4 = st.columns(4)
+    task_skill = c1.selectbox("Required Skill", options=all_skills)
+    task_deadline = c2.number_input("Days to Deadline", min_value=0, value=7)
+    task_priority = c3.selectbox("Priority", options=["Low", "Medium", "High"])
+    task_duration = c4.number_input("Duration (Hours)", min_value=1.0, value=4.0)
+
+    if st.button("Assign Task"):
+        # Prepare state
+        s_idx = skill_encoder.transform([task_skill])[0]
+        p_idx = {"Low": 0, "Medium": 1, "High": 2}.get(task_priority, 1)
+        dur_norm = task_duration / 8
+        
+        state = np.concatenate([
+            np.array([s_idx, task_deadline, p_idx, dur_norm]),
+            [m['Workload'] / 20 for m in st.session_state.team]
+        ])
+        
+        action, _ = st.session_state.model.predict(state.reshape(1, -1), deterministic=True)
+        assigned_idx = int(action[0])
+        assigned_member = st.session_state.team[assigned_idx]
+        
+        # Update workload in session state
+        st.session_state.team[assigned_idx]['Workload'] += dur_norm
+        
+        st.balloons()
+        st.success(f"### 🏆 Task assigned to: **{assigned_member['Name']}**")
+        
+        # Display summary
+        st.info(f"**Reasoning:** {assigned_member['Name']} has skills: {', '.join(assigned_member['Skills'])}. Current Workload: {st.session_state.team[assigned_idx]['Workload']*8:.1f} hours.")
+else:
+    st.warning("Please train the model first to enable ta
