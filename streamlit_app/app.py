@@ -66,8 +66,6 @@ st.sidebar.header("Data & Model")
 BASE_DIR = Path(__file__).parent
 DATA_PATH = BASE_DIR / "adaptive_task_scheduling_dataset.csv"
 
-BASE_DIR = Path(__file__).parent
-DATA_PATH = BASE_DIR / "adaptive_task_scheduling_dataset.csv"
 
 if DATA_PATH.exists():
     df = pd.read_csv(DATA_PATH)
