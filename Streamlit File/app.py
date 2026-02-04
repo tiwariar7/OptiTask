@@ -8,6 +8,8 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv
 from sklearn.preprocessing import LabelEncoder
 
+import pickle
+
 class TaskSchedulingEnv(gym.Env):
     def __init__(self, tasks, team, skill_encoder):
         super(TaskSchedulingEnv, self).__init__()
@@ -147,9 +149,22 @@ if 'model' in st.session_state:
         st.session_state.team[assigned_idx]['Workload'] += dur_norm
         
         st.balloons()
-        st.success(f"### 🏆 Task assigned to: **{assigned_member['Name']}**")
+        st.success(f"### Task assigned to: **{assigned_member['Name']}**")
         
         # Display summary
         st.info(f"**Reasoning:** {assigned_member['Name']} has skills: {', '.join(assigned_member['Skills'])}. Current Workload: {st.session_state.team[assigned_idx]['Workload']*8:.1f} hours.")
 else:
-    st.warning("Please train the model first to enable ta
+    st.warning("Please train the model first to enable task assignment.")
+
+# --- Dashboard ---
+st.header("Team Dashboard")
+workload_data = pd.DataFrame([
+    {"Name": m["Name"], "Workload (Hours)": m["Workload"] * 8} 
+    for m in st.session_state.team
+])
+st.bar_chart(workload_data.set_index("Name"))
+
+if st.button("Reset Workloads"):
+    for m in st.session_state.team:
+        m['Workload'] = 0.0
+    st.rerun()
