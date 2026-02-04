@@ -162,13 +162,25 @@ else:
 
 # --- Dashboard ---
 st.header("Team Dashboard")
+
+# Create DataFrame safely
 workload_data = pd.DataFrame([
-    {"Name": m["Name"], "Workload (Hours)": m["Workload"] * 8} 
+    {
+        "Name": str(m.get("Name", "")), 
+        "Workload (Hours)": float(m.get("Workload", 0.0)) * 8
+    }
     for m in st.session_state.team
 ])
+
+# Explicitly enforce safe dtypes
+workload_data["Name"] = workload_data["Name"].astype("string")
+workload_data["Workload (Hours)"] = workload_data["Workload (Hours)"].astype("float")
+
+# Plot
 st.bar_chart(workload_data.set_index("Name"))
 
+# Reset button
 if st.button("Reset Workloads"):
     for m in st.session_state.team:
-        m['Workload'] = 0.0
+        m["Workload"] = 0.0
     st.rerun()
